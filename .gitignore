@@ -1,0 +1,6 @@
+.RData
+.Rhistory
+.Rproj.user/
+*.csv
+chicago_weather*
+athlete-performance.Rproj
