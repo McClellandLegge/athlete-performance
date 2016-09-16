@@ -28,6 +28,9 @@ alert('JavaScript called!');
 }
 "
 
+js_linktomr <-"
+a(http://movementrepublic.com/
+
 runApp(shinyApp(
   ui = fluidPage(
     useShinyjs(),

@@ -3,20 +3,26 @@ shinyUI(fluidPage(
   useShinyjs(),
 
   tags$head(
+    tags$title("Movement Republic Athlete Performance")
     # Include our custom CSS
-    tags$style(HTML("@import url('http://bootswatch.com/simplex/bootstrap.css');"))
-    , includeCSS("www/busy_style.css")
-    , includeScript("www/busy.js")
+    , tags$style(HTML("@import url('http://bootswatch.com/simplex/bootstrap.css');"))
+      , includeCSS("www/busy_style.css")
+      , includeScript("www/busy.js")
   ),
 
   fluidRow(
-    mainPanel(
-      column(6,
-             br(), br(), list(img(src = "mr_wordmark_crossfit1.png")), br(), br(), br()
-      ),
-      column(6, h1("Athlete Performance", style = "color: #2b112f; font-family: Bitter,Open Sans,sans-serif;
-                   font-weight: 700;"))
-    )
+
+      div(style = "width: 100%; display: table;",
+          div(style = "display: table-row")
+          , div(style = "width: 600px; display: table-cell;"
+              , a(href = "http://movementrepublic.com/"
+                  , target = "_blank"
+                  , img(src = "mr_wordmark_crossfit1.png")))
+        , div(style = "display: table-cell;"
+              , span("Athlete Performance", style = "color: #2b112f; font-family: Bitter,Open Sans,sans-serif;
+                   font-weight: 700; font-size: 400%;"))
+      )
+      ,br()
   ),
   tabsetPanel(
     tabPanel("Model"
@@ -25,7 +31,8 @@ shinyUI(fluidPage(
                    h3("Inputs")
                   , uiOutput("movement_selector")
                   , uiOutput("athlete_selector")
-                  , checkboxInput("include_weather", "Include Weather", value = TRUE)
+                  , checkboxInput("include_temp", "Include Temperature", value = TRUE)
+                  , checkboxInput("include_hum", "Include Humidity", value = TRUE)
                   , checkboxInput("include_lifttype", "Include Lift Type", value = TRUE)
                   , checkboxInput("include_classtime", "Include Class Time", value = TRUE)
                   , h3("Prediction")
@@ -36,6 +43,16 @@ shinyUI(fluidPage(
                   , numericInput("pred_reps", "Reps", min = 1, value = 1)
                   , numericInput("pred_temp", "Temperature (F)", value = 80)
                   , numericInput("pred_hum", "Humidity (%)", min = 0, max = 100,  value = 60)
+                  ,  div(a(href = "https://github.com/McClellandLegge/athlete-performance/issues"
+                                                 , target = "_blank"
+                                                 , img(src = "octocat.png", width = "50px"))
+                         , span("Report a bug/Request a feature"
+                                , style = "color: #2b112f; font-family: Bitter,Open Sans,sans-serif;font-weight: 700;"))
+                  , div(a(href = "http://robotoaster.co/"
+                          , target = "_blank"
+                          , img(src = "robo_toaster.png", width = "50px"))
+                        , span("Check out some other cool kids"
+                               , style = "color: #2b112f; font-family: Bitter,Open Sans,sans-serif;font-weight: 700;"))
                    )
                , mainPanel(
                  h2("Historical Performance & Prediction")

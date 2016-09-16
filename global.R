@@ -10,16 +10,11 @@ library("plotly")
 library("DT")
 library("lubridate")
 library("shinyjs")
+library("Formula")
 
 # Data Load ---------------------------------------------------------------
 
-one_rep <- readRDS("data/one_rep.rds")[variable == "Baechle"]
-
 athlete_performance <- readRDS("data/athlete_performance.rds")
-
-# Modelling ---------------------------------------------------------------
-
-orf <- lm(value ~ Reps, data = one_rep)
 
 # Functions ---------------------------------------------------------------
 

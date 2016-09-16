@@ -13,7 +13,7 @@ div.outer {
 }
 
 /* Customize fonts */
-/* body, label, input, button, select { 
+/* body, label, input, button, select {
   font-family: 'Helvetica Neue', Helvetica;
   font-weight: 200;
 } */
@@ -46,4 +46,14 @@ h1, h2, h3, h4 { font-weight: 400; }
 /* If not using map tiles, show a white background */
 .leaflet-container {
   background-color: white !important;
+}
+
+.container{
+    display: flex;
+}
+.fixed{
+    width: 100px;
+}
+.flex-item{
+    flex-grow: 1;
 }

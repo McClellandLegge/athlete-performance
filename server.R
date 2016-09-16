@@ -1,5 +1,5 @@
 
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
 
 # Dynamic Inputs ----------------------------------------------------------
 
@@ -25,7 +25,7 @@ shinyServer(function(input, output) {
     selectizeInput("athlete", "Athlete"
                    , choices = athletes
                    , multiple = FALSE
-                   , selected = "S. Harvey"
+                   # , selected = "S. Harvey"
     )
   }) #/ athlete_selector
 
@@ -70,34 +70,39 @@ shinyServer(function(input, output) {
     set <- athlete_data()
 
     frml <- Formula(Weight ~ Reps + Sets + Date)
-    if (input$include_weather) frml <- update(frml, . ~ . + Temperature + Humidity)
+    if (input$include_temp) frml <- update(frml, . ~ . + Temperature)
+    if (input$include_hum) frml <- update(frml, . ~ . + Humidity)
     if (input$include_lifttype) frml <- update(frml, . ~ . + Type)
     if (input$include_classtime) frml <- update(frml, . ~ . + I(`Time of Day`))
+
+    shiny::validate(
+      need(nrow(set) > 10, "Not enough data for a model!")
+    )
 
     lm(frml, data = set)
   }) #/ model_fit
 
   pred_data <- reactive({
-    if (input$include_weather)
-      shiny::validate(
-        need(input$pred_temp, "")
-        , need(input$pred_hum, ""))
+    if (input$include_temp)
+      shiny::validate(need(input$pred_temp, ""))
+    if (input$include_hum)
+      shiny::validate(need(input$pred_hum, ""))
     if (input$include_lifttype)
       shiny::validate(need(input$pred_type, ""))
     if (input$include_classtime)
       shiny::validate(need(input$pred_class, ""))
 
-    as.data.table(
-      list(
-        Date = input$pred_date
-        , Sets = input$pred_sets
-        , Reps = input$pred_reps
-        , Type = input$pred_type
-        , Temperature = input$pred_temp
-        , Humidity = input$pred_hum
-        , `Time of Day` = input$pred_class
-      )
+    init <- list(
+      Date = input$pred_date
+      , Sets = input$pred_sets
+      , Reps = input$pred_reps
+      , Type = input$pred_type
+      , Temperature = input$pred_temp
+      , Humidity = input$pred_hum
+      , `Time of Day` = input$pred_class
     )
+
+    as.data.table(init)
   }) #/ pred_data
 
   pred_value <- reactive({
@@ -156,7 +161,7 @@ shinyServer(function(input, output) {
 
   output$athlete_history <- renderDataTable({
     athlete_data() %>%
-      dplyr::select(Name, Date, `Rep Scheme`, Result, Component, Temperature, Humidity) %>%
+      dplyr::select(Name, Date, `Time of Day`, `Rep Scheme`, Type, Result, Component, Temperature, Humidity) %>%
       datatable(filter = "top")
   }) #/ athlete_history
 
@@ -173,7 +178,6 @@ shinyServer(function(input, output) {
 
     coefs <- model_fit()$coefficients
 
-
     pred_list_items <- coef_list_items <- list()
 
     k <- 1
@@ -183,9 +187,11 @@ shinyServer(function(input, output) {
       k <- k + 1
     }
 
-    if (input$include_weather) {
+    if (input$include_temp) {
       pred_list_items[[k]] <- shiny::tags$li(paste0("Temperature at ", input$pred_temp, " degrees Fahrenheit"))
       k <- k + 1
+    }
+    if (input$include_hum) {
       pred_list_items[[k]] <- shiny::tags$li(paste0("With ", input$pred_hum, "% humidity"))
       k <- k + 1
     }
@@ -200,18 +206,14 @@ shinyServer(function(input, output) {
       , shiny::tags$ul(
         pred_list_items
       )
-      , p(paste0("you will lift ", pv, "lbs/", round(pvkg, 1), "kg for ", input$pred_sets, " set(s) of ", input$pred_reps, "rep(s) . Kickass!"))
+      , p(paste0("you will lift ", pv, "lbs/", round(pvkg, 1), "kg for ", input$pred_sets, " set(s) of ", input$pred_reps, " rep(s) . Kickass!"))
       # , h4("Model Coefficient Interpretation")
 
       , h4("Additional Notes")
       , p("If these results look weird, make sure your prediction makes sense and that your % variance explained is reasonably high (> 60%). For instance you should not try to predict your weight for 1 Set of 1 Reps for an EMOM lift!")
       , br()
       , p("Additionally if you do not have a lot of data, or are predicting outside of any lift you have attempted (e.g. predicting a 1 rep max never having performed one), your results may not make sense.")
-
     )
-
-
-
   }) #/ prediction
 
   output$model_summary <- renderPrint({
@@ -220,11 +222,47 @@ shinyServer(function(input, output) {
 
 # Observers ---------------------------------------------------------------
 
+  # manual inclusion/exclusion
   observe({
-    toggle(id = "pred_temp", anim = TRUE, condition = input$include_weather)
-    toggle(id = "pred_hum", anim = TRUE, condition = input$include_weather)
+    toggle(id = "pred_temp", anim = TRUE, condition = input$include_temp)
+    toggle(id = "pred_hum", anim = TRUE, condition = input$include_hum)
     toggle(id = "pred_type", anim = TRUE, condition = input$include_lifttype)
     toggle(id = "pred_class", anim = TRUE, condition = input$include_classtime)
-  })
+  }, priority = 97)
+
+  # qc inclusion/exclusion
+  observe({
+    if (length(unique(athlete_data()$`Time of Day`)) < 2) {
+      updateCheckboxInput(session, "include_classtime", value = FALSE)
+      hide("class_time", anim = TRUE)
+      disable(id = "include_classtime")
+    } else {
+      enable(id = "include_classtime")
+      show("class_time", anim = TRUE)
+    }
+    if (length(unique(athlete_data()$Type)) < 2) {
+      updateCheckboxInput(session, "include_lifttype", value = FALSE)
+      hide("lift_type", anim = TRUE)
+      disable(id = "include_lifttype")
+    } else {
+      enable(id = "include_lifttype")
+      show("lift_type", anim = TRUE)
+    }
+
+  }, priority = 98)
+
+  observeEvent(input$athlete, {
+    updateCheckboxInput(session, "include_classtime", value = TRUE)
+    updateCheckboxInput(session, "include_lifttype", value = TRUE)
+
+    weath_corr <- with(athlete_data(), cor(Temperature, Humidity))
+    if (weath_corr > 0.6) {
+      updateCheckboxInput(session, "include_hum", value = FALSE)
+      hide("pred_hum", anim = TRUE)
+      disable(id = "include_hum")
+    }
+
+  }, priority = 99)
+
 
 })
