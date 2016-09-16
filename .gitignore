@@ -4,3 +4,4 @@
 *.csv
 chicago_weather*
 athlete-performance.Rproj
+.Rproj.user

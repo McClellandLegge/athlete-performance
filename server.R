@@ -1,12 +1,14 @@
 
 shinyServer(function(input, output) {
 
+# Dynamic Inputs ----------------------------------------------------------
+
   output$movement_selector <- renderUI({
     mvts <- sort(unique(athlete_performance$Component))
     selectizeInput("movement", "Movement"
                    , choices = mvts
                    , multiple = FALSE
-                   )
+    )
   }) #/ movement_selector
 
   output$athlete_selector <- renderUI({
@@ -24,38 +26,8 @@ shinyServer(function(input, output) {
                    , choices = athletes
                    , multiple = FALSE
                    , selected = "S. Harvey"
-                   )
-  }) #/ athlete_selector
-
-  athlete_data <- reactive({
-    shiny::validate(
-      need(input$athlete, "")
     )
-    dplyr::filter(athlete_performance
-                  , Component == input$movement
-                  , Name == input$athlete) %>%
-      arrange(desc(Date))
-  }) #/ athlete_data
-
-  output$athlete_history <- renderDataTable({
-    athlete_data() %>%
-      dplyr::select(Name, Date, `Rep Scheme`, Result, Component, Temperature, Humidity) %>%
-      datatable(filter = "top")
-  }) #/ athlete_history
-
-  model_fit <- reactive({
-    set <- athlete_data()
-    if (length(unique(set$`Time of Day`)) > 1) {
-      lm(Weight ~ Sets + Reps + Date + Type + Temperature + Humidity + I(`Time of Day`), data = set)
-    } else {
-      lm(Weight ~ Sets + Reps + Date + Type + Temperature + Humidity, data = set)
-    }
-
-  }) #/ model_fit
-
-  output$model_summary <- renderPrint({
-    summary(model_fit())
-  }) #/ model_summary
+  }) #/ athlete_selector
 
   output$class_time <- renderUI({
     athlete_data() %>%
@@ -63,10 +35,10 @@ shinyServer(function(input, output) {
       unique %>%
       arrange(`Time of Day`) %>%
       unlist(use.names = FALSE) %>%
-    selectizeInput("pred_class", "Class Time"
-                   , choices = .
-                   , multiple = FALSE
-    )
+      selectizeInput("pred_class", "Class Time"
+                     , choices = .
+                     , multiple = FALSE
+      )
   }) #/ class_time
 
   output$lift_type <- renderUI({
@@ -82,52 +54,61 @@ shinyServer(function(input, output) {
       )
   }) #/ lift_type
 
-  pred_data <- reactive({
-    shiny::validate(
-      need(input$pred_date, "Select a class date")
-      , need(input$pred_sets, "Select a number of sets")
-      , need(input$pred_reps, "Select a number of reps")
-      , need(input$pred_class, "Select a class time")
-      , need(input$pred_type, "Select a lift type")
-      , need(input$pred_temp, "Select a temperature")
-      , need(input$pred_hum, "Select a humidity")
-    )
-    data.table(
-      Date = input$pred_date
-      , Sets = input$pred_sets
-      , Reps = input$pred_reps
-      , Type = input$pred_type
-      , Temperature = input$pred_temp
-      , Humidity = input$pred_hum
-      , `Time of Day` = input$pred_class
-    )
+# Data Objects ------------------------------------------------------------
 
+  athlete_data <- reactive({
+    shiny::validate(
+      need(input$athlete, "")
+    )
+    dplyr::filter(athlete_performance
+                  , Component == input$movement
+                  , Name == input$athlete) %>%
+      arrange(desc(Date))
+  }) #/ athlete_data
+
+  model_fit <- reactive({
+    set <- athlete_data()
+
+    frml <- Formula(Weight ~ Reps + Sets + Date)
+    if (input$include_weather) frml <- update(frml, . ~ . + Temperature + Humidity)
+    if (input$include_lifttype) frml <- update(frml, . ~ . + Type)
+    if (input$include_classtime) frml <- update(frml, . ~ . + I(`Time of Day`))
+
+    lm(frml, data = set)
+  }) #/ model_fit
+
+  pred_data <- reactive({
+    if (input$include_weather)
+      shiny::validate(
+        need(input$pred_temp, "")
+        , need(input$pred_hum, ""))
+    if (input$include_lifttype)
+      shiny::validate(need(input$pred_type, ""))
+    if (input$include_classtime)
+      shiny::validate(need(input$pred_class, ""))
+
+    as.data.table(
+      list(
+        Date = input$pred_date
+        , Sets = input$pred_sets
+        , Reps = input$pred_reps
+        , Type = input$pred_type
+        , Temperature = input$pred_temp
+        , Humidity = input$pred_hum
+        , `Time of Day` = input$pred_class
+      )
+    )
   }) #/ pred_data
 
   pred_value <- reactive({
     predict(model_fit(), pred_data())
   }) #/ pred_value
 
-  output$prediction <- renderPrint({
-    pred_value()
-  }) #/ prediction
-
   model_rsq <- reactive({
     summary(model_fit())$r.squared
   }) #/ model_rsq
 
-  output$estimate_selector <- renderUI({
-    if (model_rsq() < 0.75) {
-      radioButtons("est_type", "Prediction Type"
-                   , choices = c("Statistical Model", "Common Percentages")
-                   , selected = "Common Percentages")
-    } else {
-      radioButtons("est_type", "Prediction Type"
-                   , choices = c("Statistical Model", "Common Percentages")
-                   , selected = "Statistical Model")
-    }
-
-  }) #/ estimate_selector
+# Plot Output -------------------------------------------------------------
 
   output$trend <- renderPlotly({
 
@@ -151,9 +132,13 @@ shinyServer(function(input, output) {
       add_trace(data = prediction, x = Sets, y = Reps, z = Weight
                 , text = paste(Sets, "x", Reps, "@", round(Weight), "Prediction")
                 , type = "scatter3d", mode = "markers"
-                , hoverinfo = "text", showlegend = FALSE) %>%
-      layout(title = "Historical Performance")
+                , hoverinfo = "text", showlegend = FALSE)
   }) #/ trend
+
+  output$corr_check <- renderPlot({
+    dplyr::select(athlete_data(), Temperature, Humidity, Sets, Reps, Weight, Type) %>%
+      ggpairs(data = ., aes(colour = Type), columns = c("Temperature", "Humidity", "Reps", "Weight", "Sets"))
+  })
 
   output$fitted_vs_residuals <- renderPlotly({
     RegressionPlots(model_fit(), type = "fitted_vs_residuals")
@@ -167,5 +152,79 @@ shinyServer(function(input, output) {
     RegressionPlots(model_fit(), type = "resid_vs_leverage")
   }) #/ resid_vs_leverage
 
+# Data Output -------------------------------------------------------------
+
+  output$athlete_history <- renderDataTable({
+    athlete_data() %>%
+      dplyr::select(Name, Date, `Rep Scheme`, Result, Component, Temperature, Humidity) %>%
+      datatable(filter = "top")
+  }) #/ athlete_history
+
+# Other Output ------------------------------------------------------------
+
+  output$prediction <- renderPrint({
+    shiny::validate(
+      need(pred_value(), "")
+    )
+
+    pv <- 2.5 * round(pred_value() / 2.5)
+    pvkg <- pv * 0.45359237
+    rs <- round(100 * model_rsq())
+
+    coefs <- model_fit()$coefficients
+
+
+    pred_list_items <- coef_list_items <- list()
+
+    k <- 1
+    if (input$include_lifttype) {
+      pred_list_items[[k]] <- shiny::tags$li(paste0("A ", input$pred_type, " type lift"))
+      coef_list_items[[k]] <- shiny::tags$li(paste0("A ", input$pred_type, " type lift"))
+      k <- k + 1
+    }
+
+    if (input$include_weather) {
+      pred_list_items[[k]] <- shiny::tags$li(paste0("Temperature at ", input$pred_temp, " degrees Fahrenheit"))
+      k <- k + 1
+      pred_list_items[[k]] <- shiny::tags$li(paste0("With ", input$pred_hum, "% humidity"))
+      k <- k + 1
+    }
+
+    if (input$include_classtime) {
+      pred_list_items[[k]] <- shiny::tags$li(paste0("At a ", input$pred_class, " class"))
+    }
+
+    div(
+      h4("Prediction Interpretation")
+      , p(paste0("The model current model (which explains ", rs, "% of the variance) predicts that for:"))
+      , shiny::tags$ul(
+        pred_list_items
+      )
+      , p(paste0("you will lift ", pv, "lbs/", round(pvkg, 1), "kg for ", input$pred_sets, " set(s) of ", input$pred_reps, "rep(s) . Kickass!"))
+      # , h4("Model Coefficient Interpretation")
+
+      , h4("Additional Notes")
+      , p("If these results look weird, make sure your prediction makes sense and that your % variance explained is reasonably high (> 60%). For instance you should not try to predict your weight for 1 Set of 1 Reps for an EMOM lift!")
+      , br()
+      , p("Additionally if you do not have a lot of data, or are predicting outside of any lift you have attempted (e.g. predicting a 1 rep max never having performed one), your results may not make sense.")
+
+    )
+
+
+
+  }) #/ prediction
+
+  output$model_summary <- renderPrint({
+    summary(model_fit())
+  }) #/ model_summary
+
+# Observers ---------------------------------------------------------------
+
+  observe({
+    toggle(id = "pred_temp", anim = TRUE, condition = input$include_weather)
+    toggle(id = "pred_hum", anim = TRUE, condition = input$include_weather)
+    toggle(id = "pred_type", anim = TRUE, condition = input$include_lifttype)
+    toggle(id = "pred_class", anim = TRUE, condition = input$include_classtime)
+  })
 
 })

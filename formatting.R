@@ -1,6 +1,5 @@
 source("global.R")
 
-
 # Libraries ---------------------------------------------------------------
 
 # we don't like these loaded because of certain troublesome function masks
@@ -38,7 +37,6 @@ pr_ap <- list.files(
                            as.numeric(sub("(\\d+)[: ](.*)", "\\1", `Class Name`)) + 12
                            , as.numeric(sub("(\\d+)[: ](.*)", "\\1", `Class Name`))
                            ))
-
     , min = 0
   ) %>%
   transform(
