@@ -206,12 +206,14 @@ shinyServer(function(input, output, session) {
       , shiny::tags$ul(
         pred_list_items
       )
-      , p(paste0("you will lift ", pv, "lbs/", round(pvkg, 1), "kg for ", input$pred_sets, " set(s) of ", input$pred_reps, " rep(s) . Kickass!"))
+      , p(paste0("you will lift ", pv, "lbs/", round(pvkg, 1), "kg for ", input$pred_sets, " set(s) of ", input$pred_reps, " rep(s)."))
+      , p(paste0("Coach John says: Kickass!"))
+      , p(paste0("Coach Sarah says: ...ehhh, you probably should add some weight."))
+      , p(paste0("Coach Dustin says: stop looking at the model and meet me by the whiteboard, NOW!"))
       # , h4("Model Coefficient Interpretation")
 
       , h4("Additional Notes")
       , p("If these results look weird, make sure your prediction makes sense and that your % variance explained is reasonably high (> 60%). For instance you should not try to predict your weight for 1 Set of 1 Reps for an EMOM lift!")
-      , br()
       , p("Additionally if you do not have a lot of data, or are predicting outside of any lift you have attempted (e.g. predicting a 1 rep max never having performed one), your results may not make sense.")
     )
   }) #/ prediction
@@ -255,14 +257,15 @@ shinyServer(function(input, output, session) {
     updateCheckboxInput(session, "include_classtime", value = TRUE)
     updateCheckboxInput(session, "include_lifttype", value = TRUE)
 
-    weath_corr <- with(athlete_data(), cor(Temperature, Humidity))
-    if (weath_corr > 0.6) {
-      updateCheckboxInput(session, "include_hum", value = FALSE)
-      hide("pred_hum", anim = TRUE)
-      disable(id = "include_hum")
+    if (!is.null(athlete_data())) {
+      weath_corr <- with(athlete_data(), cor(Temperature, Humidity))
+      if (coalesce(weath_corr, 1) > 0.6) {
+        updateCheckboxInput(session, "include_hum", value = FALSE)
+        hide("pred_hum", anim = TRUE)
+        disable(id = "include_hum")
+      }
     }
 
   }, priority = 99)
-
 
 })

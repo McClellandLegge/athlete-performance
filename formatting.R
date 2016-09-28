@@ -52,7 +52,7 @@ pr_ap <- list.files(
 one_rep <- fread("data/one_rep_max_est.csv") %>%
   melt(id.vars = "Reps")
 
-saveRDS(one_rep, "data/one_rep.rds")
+# saveRDS(one_rep, "data/one_rep.rds")
 
 # Weather Data ------------------------------------------------------------
 
@@ -76,6 +76,7 @@ weather <- list.files("data", full.names = TRUE, pattern = "chicago_weather") %>
   transform(
     px_start = as.POSIXct(paste0(year, "-", mon, "-", mday, " ", hour, ":", min, ":00 CDT"))
   ) %>%
+  unique() %>%
   transform(
     secdiff = c(diff(px_start), 60) - 1
     , `Time of Day` = ifelse(as.numeric(hour) < 9, "Morning",
@@ -95,4 +96,10 @@ athlete_performance <- foverlaps(pr_ap, weather, by.x = c("classtime", "dummy"))
   rename(Temperature = temp, Humidity = humidity) %>%
   transform(Temperature = as.numeric(Temperature)
             , Humidity = as.numeric(Humidity))
+
+# Adjustments -------------------------------------------------------------
+
+# This day is really a 1-rep max day, is really influencing the max lift
+athlete_performance[Date == '2016-01-29', Type := "Max"]
+
 saveRDS(athlete_performance, "data/athlete_performance.rds")

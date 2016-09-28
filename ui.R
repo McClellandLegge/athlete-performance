@@ -8,6 +8,7 @@ shinyUI(fluidPage(
     , tags$style(HTML("@import url('http://bootswatch.com/simplex/bootstrap.css');"))
       , includeCSS("www/busy_style.css")
       , includeScript("www/busy.js")
+    , shiny::tags$link(rel = "shortcut icon", href = "http://movementrepublic.com/wp-content/uploads/2015/01/MR_favicon.ico")
   ),
 
   fluidRow(
